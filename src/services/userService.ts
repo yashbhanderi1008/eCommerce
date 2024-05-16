@@ -69,48 +69,24 @@ export class userServise {
 
         // await User.findByIdAndDelete(userId);
 
-        // const agg = [
-        //     {
-        //         $match: { _id: new Types.ObjectId('66348512895be6a86258dc35') }
-        //     },
-        //     {
-        //         $lookup: {
-        //             from: "profiles",
-        //             localField: "_id",
-        //             foreignField: "userId",
-        //             as: "result"
-        //         }
-        //     },
-        //     {
-        //         $lookup: {
-        //             from: "carts",
-        //             localField: "result._id",
-        //             foreignField: "profileId",
-        //             as: "result1"
-        //         }
-        //     },
-        //     {
-        //         $project: {
-        //             "result1": 1
-        //         }
-        //     },
-        //     {
-        //         $unwind: "$result1"
-        //     }
-        // ];
-
         const agg = [
             {
-                $match: { _id: userId }
+                $match: {
+                    _id: new Types.ObjectId(userId)
+                }
             },
             {
                 $lookup: {
                     from: "profiles",
-                    let: { userId: "$_id" },
+                    let: {
+                        userId: "$_id"
+                    },
                     pipeline: [
                         {
                             $match: {
-                                $expr: { $eq: ["$userId", "$$userId"] }
+                                $expr: {
+                                    $eq: ["$userId", "$$userId"]
+                                }
                             }
                         },
                         {
@@ -120,6 +96,12 @@ export class userServise {
                                 foreignField: "profileId",
                                 as: "result1"
                             }
+                        },
+                        {
+                            $unwind: {
+                                path: "$result1",
+                                preserveNullAndEmptyArrays: true
+                            }
                         }
                     ],
                     as: "result"
@@ -127,22 +109,22 @@ export class userServise {
             },
             {
                 $unwind: "$result"
+            },
+            {
+                $project: {
+                    "result._id": 1,
+                    "result.result1._id": 1
+                }
             }
-        ];
-        
+        ]
 
         const result = await User.aggregate(agg);
-    
+
         const profileIds = result.map(doc => doc.result._id);
-        
-        const resultId=result.map(doc=>doc.result.result1)
-        
-        const cartIds=resultId.filter(doc=>doc.length>0).map(doc=>doc[0]._id)
-        
+        const cartIds = result.filter(doc => doc.result.result1).map(doc => doc.result.result1._id);
+
         await Cart.deleteMany({ _id: { $in: cartIds } });
-
         await Profile.deleteMany({ _id: { $in: profileIds } });
-
         await User.findByIdAndDelete(userId);
     }
 }
